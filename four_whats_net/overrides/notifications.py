@@ -5,6 +5,9 @@ import requests
 import pytz
 from datetime import datetime
 
+# Channels that use the Four Whats Net (WhatsApp) service
+WHATSAPP_CHANNELS = ("4Whats.net", "Whatsapp Saudi")
+
 class ERPGulfNotification(Notification):
     def validate(self):
         self.validate_custom_settings()
@@ -12,10 +15,10 @@ class ERPGulfNotification(Notification):
 
     def validate_custom_settings(self):
         if self.enabled:
-            if self.channel == "4Whats.net":
-                self.validate_hormuud_sms_settings()
-            elif self.channel == "SMSHormuud":
+            if self.channel in WHATSAPP_CHANNELS:
                 self.validate_four_whats_settings()
+            elif self.channel == "SMSHormuud":
+                self.validate_hormuud_sms_settings()
 
     def validate_hormuud_sms_settings(self):
         settings = frappe.get_doc("Hormuud SMS Configuration")
@@ -39,7 +42,7 @@ class ERPGulfNotification(Notification):
         try:
             if self.channel == "SMSHormuud":
                 self.send_hormuud_sms(doc, context)
-            elif self.channel == "4Whats.net":
+            elif self.channel in WHATSAPP_CHANNELS:
                 self.send_whatsapp_msg(doc, context)
         except Exception:
             frappe.log_error(title="Failed to send notification", message=frappe.get_traceback())
@@ -79,7 +82,7 @@ class ERPGulfNotification(Notification):
                     title="Invalid Phone Number"
                 )
                 continue  # Skip if the number doesn't match the length requirement
-            frappe.msgprint("Numberka Wax Loo diri rabo waa ", phone_number)
+            frappe.msgprint(f"Numberka Wax Loo diri rabo waa {phone_number}")
             receiver_numbers.append(phone_number)
             self.send_sms(settings, phone_number, message)
             self.create_message_sms(phone_number, message)
@@ -96,19 +99,37 @@ class ERPGulfNotification(Notification):
         settings = frappe.get_doc("Four Whats Net Configuration")
         recipients = self.get_receiver_list(doc, context)
         receiver_numbers = []
+
+        if not recipients:
+            frappe.log_error(
+                message=(
+                    f"No recipients found for notification '{self.name}' on document '{doc.name}'. "
+                    "Check that 'receiver_by_document_field' points to a valid phone field in the document."
+                ),
+                title="WhatsApp Notification: No Recipients"
+            )
+            return
+
         for recipient in recipients:
             number = frappe.render_template(recipient, context)
             message = frappe.render_template(self.message, context)
             phone_number = self.get_receiver_phone_number(number)
-            
+
             # Skip sending if phone number is invalid
             if not phone_number:
                 continue
-            
+
             receiver_numbers.append(phone_number)
             self.send_whatsapp(settings, phone_number, message, doc)
             self.create_message_record(phone_number, message)
-        frappe.msgprint(_(f"WhatsApp message sent to {', '.join(receiver_numbers)}"))
+
+        if receiver_numbers:
+            frappe.msgprint(_(f"WhatsApp message sent to {', '.join(receiver_numbers)}"))
+        else:
+            frappe.log_error(
+                message=f"No valid phone numbers found for notification '{self.name}' on document '{doc.name}'.",
+                title="WhatsApp Notification: No Valid Numbers"
+            )
 
 
     def get_receiver_phone_number(self, number):
