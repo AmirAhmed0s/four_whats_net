@@ -63,9 +63,11 @@ frappe.notification = {
 							: null;
 					}
 				});
-			} else if (in_list(["WhatsApp", "SMS", "4Whats.net", "SMSHormuud"], frm.doc.channel)) {
+			} else if (in_list(["WhatsApp", "SMS", "4Whats.net", "SMSHormuud", "Whatsapp Saudi"], frm.doc.channel)) {
 				receiver_fields = $.map(fields, function (d) {
-					return d.options == "Phone" ? get_select_options(d) : null;
+					return (d.options == "Phone" || d.fieldtype == "Phone")
+						? get_select_options(d)
+						: null;
 				});
 			}
 
